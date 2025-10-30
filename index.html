@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>即梦AI图片生成4.0 API调用工具 (终极版)</title>
+    
+    <!-- 步骤1：替换原有 Aws4Fetch 引入，新增 defer 确保加载顺序，添加备用 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/aws4fetch@1.0.17/dist/aws4fetch.min.js" defer></script>
+    <script>
+        // CDN 备用加载逻辑
+        window.Aws4Fetch || document.write('<script src="https://unpkg.com/aws4fetch@1.0.17/dist/aws4fetch.min.js" defer><\/script>');
+    </script>
+    
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: auto; background-color: #f8f9fa; color: #333; }
+        .container { border: 1px solid #dee2e6; padding: 25px; margin-bottom: 25px; border-radius: 8px; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        h1, h2, h3 { border-bottom: 2px solid #e9ecef; padding-bottom: 10px; color: #212529; }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #495057; }
+        input[type="text"], input[type="password"], input[type="number"], select, textarea { width: 100%; box-sizing: border-box; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ced4da; transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; }
+        input:focus, select:focus, textarea:focus { border-color: #80bdff; outline: 0; box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); }
+        button { padding: 12px 20px; margin-top: 25px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; transition: background-color 0.2s; }
+        button:hover { background-color: #0056b3; }
+        pre { background-color: #e9ecef; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #ced4da; color: #212529; }
+        #imagePreview img { max-width: 300px; height: auto; margin: 10px; border: 1px solid #ddd; padding: 5px; border-radius: 4px; vertical-align: top; }
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>即梦AI图片生成4.0 API调用工具 (终极版)</h1>
+
+    <!-- 任务提交部分 -->
+    <div class="container">
+        <h2>1. 提交生成任务</h2>
+        <div class="grid-container">
+            <div>
+                <label for="accessKey">Access Key:</label>
+                <input type="text" id="accessKey" placeholder="输入您的火山引擎 Access Key">
+            </div>
+            <div>
+                <label for="secretKey">Secret Key:</label>
+                <input type="password" id="secretKey" placeholder="输入您的火山引擎 Secret Key">
+            </div>
+        </div>
+
+        <label for="prompt">提示词 (prompt):</label>
+        <textarea id="prompt" rows="3" placeholder="必填。例如：一只穿着宇航服的猫在月球上弹吉他，数字艺术"></textarea>
+
+        <label for="imageUrls">参考图片URL (image_urls, 可选, 多个用英文逗号分隔):</label>
+        <input type="text" id="imageUrls" placeholder="http://example.com/image1.jpg,http://example.com/image2.jpg">
+        
+        <div class="grid-container">
+            <div>
+                <label for="resolution">清晰度 (长边像素):</label>
+                <select id="resolution">
+                    <option value="1024">1K (1024px)</option>
+                    <option value="2048">2K (2048px)</option>
+                    <option value="4096" selected>4K (4096px)</option>
+                </select>
+            </div>
+            <div>
+                <label for="aspectRatio">图片画幅 (aspect_ratio):</label>
+                <select id="aspectRatio">
+                    <option value="1:1" selected>方图 (1:1)</option>
+                    <option value="4:3">横图 (4:3)</option>
+                    <option value="3:4">竖图 (3:4)</option>
+                    <option value="16:9">宽幅横图 (16:9)</option>
+                    <option value="9:16">宽幅竖图 (9:16)</option>
+                </select>
+            </div>
+        </div>
+        
+        <label for="scale">文本描述影响程度 (scale):</label>
+        <input type="number" id="scale" value="0.5" step="0.1" min="0" max="1">
+        
+        <button onclick="submitTask()">提交任务</button>
+        <h3>提交结果:</h3>
+        <pre id="submitResult">此处将显示任务提交的API返回结果...</pre>
+    </div>
+
+    <!-- 任务查询部分 -->
+    <div class="container">
+        <h2>2. 查询任务结果</h2>
+        <div class="grid-container">
+             <div>
+                <label for="queryAccessKey">Access Key:</label>
+                <input type="text" id="queryAccessKey" placeholder="提交成功后自动填充">
+            </div>
+            <div>
+                <label for="querySecretKey">Secret Key:</label>
+                <input type="password" id="querySecretKey" placeholder="提交成功后自动填充">
+            </div>
+        </div>
+        
+        <label for="taskId">任务ID (task_id):</label>
+        <input type="text" id="taskId" placeholder="提交成功后自动填充">
+
+        <label for="addLogo">是否添加水印 (默认无水印):</label>
+        <select id="addLogo">
+            <option value="false" selected>无水印</option>
+            <option value="true">添加水印</option>
+        </select>
+        
+        <label for="logoText">自定义水印文本 (添加水印时生效):</label>
+        <input type="text" id="logoText" placeholder="输入自定义水印内容">
+
+        <button onclick="queryTask()">查询结果</button>
+        <h3>查询结果:</h3>
+        <pre id="queryResult">此处将显示任务查询的API返回结果...</pre>
+        <div id="imagePreview"></div>
+    </div>
+
+    <script>
+        // 确保 DOM 加载完毕后执行
+        document.addEventListener('DOMContentLoaded', () => {
+            // 步骤3：验证库是否加载
+            // 延迟检查，给 defer 的脚本一点加载时间
+            setTimeout(() => {
+                if (typeof Aws4Fetch !== "undefined") {
+                    console.log("代码大师提示: Aws4Fetch 签名库已成功加载。");
+                } else {
+                    console.error("代码大师警告: Aws4Fetch 签名库未加载！请检查浏览器控制台的网络请求，确认CDN链接是否可访问。");
+                    alert("关键签名库 Aws4Fetch 加载失败，请刷新页面重试，或检查网络连接。");
+                }
+            }, 500);
+        });
+
+        // 步骤2：修正 Aws4Fetch 实例化方式
+        async function generateSignedRequest(accessKey, secretKey, bodyParams, action) {
+            const region = "cn-north-1";
+            const service = "cv";
+            const url = `https://visual.volcengineapi.com?Action=${action}&Version=2022-08-31`;
+            
+            // 修正：采用“密钥+配置”分离的实例化方式，对 1.0.17 版本兼容性更佳
+            const aws4fetch = new Aws4Fetch(accessKey, secretKey, {
+                region: region,
+                service: service
+            });
+            
+            const requestOptions = {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(bodyParams)
+            };
+            return await aws4fetch.fetch(url, requestOptions);
+        }
+
+        async function submitTask() {
+            const accessKey = document.getElementById('accessKey').value;
+            const secretKey = document.getElementById('secretKey').value;
+            const imageUrls = document.getElementById('imageUrls').value.split(',').filter(url => url.trim() !== '');
+            const prompt = document.getElementById('prompt').value;
+            const resolution = parseInt(document.getElementById('resolution').value);
+            const aspectRatio = document.getElementById('aspectRatio').value;
+            const scale = document.getElementById('scale').value;
+
+            if (!accessKey || !secretKey || !prompt) {
+                document.getElementById('submitResult').textContent = '错误：Access Key、Secret Key、提示词为必选参数！';
+                return;
+            }
+            
+            document.getElementById('submitResult').textContent = '正在提交任务，请稍候...';
+
+            // 根据画幅计算 width 和 height
+            const [ratioW, ratioH] = aspectRatio.split(':').map(Number);
+            let width, height;
+            if (ratioW >= ratioH) { // 横图或方图
+                width = resolution;
+                height = Math.round(resolution * ratioH / ratioW);
+            } else { // 竖图
+                height = resolution;
+                width = Math.round(resolution * ratioW / ratioH);
+            }
+
+            const bodyParams = {
+                req_key: 'jimeng_t2i_v40',
+                prompt,
+                width: width,
+                height: height,
+                scale: parseFloat(scale)
+            };
+            if (imageUrls.length > 0) bodyParams.image_urls = imageUrls;
+
+            try {
+                const response = await generateSignedRequest(accessKey, secretKey, bodyParams, "CVSync2AsyncSubmitTask");
+                const result = await response.json();
+                document.getElementById('submitResult').textContent = `提交结果：\n${JSON.stringify(result, null, 2)}`;
+                if (result.code === 10000) {
+                    const taskId = result.data.task_id;
+                    alert(`任务提交成功！任务ID：${taskId}（已自动填充至查询区域）`);
+                    document.getElementById('queryAccessKey').value = accessKey;
+                    document.getElementById('querySecretKey').value = secretKey;
+                    document.getElementById('taskId').value = taskId;
+                }
+            } catch (error) {
+                document.getElementById('submitResult').textContent = `请求错误：\n${error.message}`;
+            }
+        }
+
+        async function queryTask() {
+            const accessKey = document.getElementById('queryAccessKey').value;
+            const secretKey = document.getElementById('querySecretKey').value;
+            const taskId = document.getElementById('taskId').value;
+            const addLogo = document.getElementById('addLogo').value === 'true';
+            const logoText = document.getElementById('logoText').value;
+
+            if (!accessKey || !secretKey || !taskId) {
+                document.getElementById('queryResult').textContent = '错误：Access Key、Secret Key、任务ID为必选参数！';
+                return;
+            }
+            
+            document.getElementById('queryResult').textContent = '正在查询任务，请稍候...';
+            document.getElementById('imagePreview').innerHTML = '';
+
+            const bodyParams = {
+                req_key: 'jimeng_t2i_v40',
+                task_id: taskId,
+                req_json: JSON.stringify({
+                    return_url: true,
+                    logo_info: { add_logo: addLogo, position: 0, language: 0, opacity: 1, logo_text_content: logoText }
+                })
+            };
+
+            try {
+                const response = await generateSignedRequest(accessKey, secretKey, bodyParams, "CVSync2AsyncGetResult");
+                const result = await response.json();
+                document.getElementById('queryResult').textContent = `查询结果：\n${JSON.stringify(result, null, 2)}`;
+
+                const previewContainer = document.getElementById('imagePreview');
+                if (result.code === 10000 && result.data.status === 'done' && result.data.image_urls) {
+                    previewContainer.innerHTML = '<h3>图片预览（右键或长按保存）：</h3>';
+                    result.data.image_urls.forEach((url, index) => {
+                        previewContainer.innerHTML += `<a href="${url}" target="_blank" title="点击查看原图"><img src="${url}" alt="生成图片${index+1}"></a>`;
+                    });
+                } else if (result.code === 10000 && result.data.status !== 'done') {
+                    previewContainer.innerHTML = `<h3>任务状态：${result.data.status}，请稍后重试...</h3>`;
+                }
+            } catch (error) {
+                document.getElementById('queryResult').textContent = `查询错误：\n${error.message}`;
+            }
+        }
+        
+        // 将函数暴露到全局作用域，以便HTML onclick可以调用
+        window.submitTask = submitTask;
+        window.queryTask = queryTask;
+    </script>
+</body>
+</html>
